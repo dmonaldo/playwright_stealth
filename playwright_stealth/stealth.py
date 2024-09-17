@@ -1,44 +1,41 @@
 # -*- coding: utf-8 -*-
+import inspect
 import json
-import os
-from dataclasses import dataclass
-from typing import Tuple, Optional, Dict
+from collections.abc import Callable
+from pathlib import Path
+from typing import Dict, List, Union, cast
 
-from playwright.async_api import Page as AsyncPage
-from playwright.sync_api import Page as SyncPage
+from playwright import async_api, sync_api
 
 
 def from_file(name) -> str:
-    """Read script from ./js directory"""
-    filename = os.path.join(os.path.dirname(__file__), "js", name)
-    with open(filename, encoding="utf-8") as f:
-        return f.read()
+    return (Path(__file__).parent / "js" / name).read_text()
 
 
 SCRIPTS: Dict[str, str] = {
-    "chrome_csi": from_file("chrome.csi.js"),
-    "chrome_app": from_file("chrome.app.js"),
-    "chrome_runtime": from_file("chrome.runtime.js"),
-    "chrome_load_times": from_file("chrome.load.times.js"),
-    "chrome_hairline": from_file("chrome.hairline.js"),
     "generate_magic_arrays": from_file("generate.magic.arrays.js"),
-    "iframe_content_window": from_file("iframe.contentWindow.js"),
-    "media_codecs": from_file("media.codecs.js"),
-    "navigator_vendor": from_file("navigator.vendor.js"),
-    "navigator_plugins": from_file("navigator.plugins.js"),
-    "navigator_permissions": from_file("navigator.permissions.js"),
-    "navigator_languages": from_file("navigator.languages.js"),
-    "navigator_platform": from_file("navigator.platform.js"),
-    "navigator_user_agent": from_file("navigator.userAgent.js"),
-    "navigator_hardware_concurrency": from_file("navigator.hardwareConcurrency.js"),
-    "outerdimensions": from_file("window.outerdimensions.js"),
     "utils": from_file("utils.js"),
-    "webdriver": from_file("navigator.webdriver.js"),
-    "webgl_vendor": from_file("webgl.vendor.js"),
+    "chrome_app": from_file("mitigations/chrome.app.js"),
+    "chrome_csi": from_file("mitigations/chrome.csi.js"),
+    "chrome_hairline": from_file("mitigations/chrome.hairline.js"),
+    "chrome_load_times": from_file("mitigations/chrome.load.times.js"),
+    "chrome_runtime": from_file("mitigations/chrome.runtime.js"),
+    "iframe_content_window": from_file("mitigations/iframe.contentWindow.js"),
+    "media_codecs": from_file("mitigations/media.codecs.js"),
+    "navigator_hardware_concurrency": from_file("mitigations/navigator.hardwareConcurrency.js"),
+    "navigator_languages": from_file("mitigations/navigator.languages.js"),
+    "navigator_permissions": from_file("mitigations/navigator.permissions.js"),
+    "navigator_platform": from_file("mitigations/navigator.platform.js"),
+    "navigator_plugins": from_file("mitigations/navigator.plugins.js"),
+    "navigator_user_agent": from_file("mitigations/navigator.userAgent.js"),
+    "navigator_vendor": from_file("mitigations/navigator.vendor.js"),
+    "navigator_webdriver": from_file("mitigations/navigator.webdriver.js"),
+    "webgl_vendor": from_file("mitigations/webgl.vendor.js"),
 }
 
+from typing import Tuple, Optional
 
-@dataclass
+
 class StealthConfig:
     """
     Playwright stealth configuration that applies stealth strategies to playwright page objects.
@@ -57,45 +54,78 @@ class StealthConfig:
         ```
     """
 
-    # load script options
-    webdriver: bool = True
-    webgl_vendor: bool = True
-    chrome_app: bool = True
-    chrome_csi: bool = True
-    chrome_load_times: bool = True
-    chrome_runtime: bool = True
-    iframe_content_window: bool = True
-    media_codecs: bool = True
-    navigator_hardware_concurrency: int = 4
-    navigator_languages: bool = True
-    navigator_permissions: bool = True
-    navigator_platform: bool = True
-    navigator_plugins: bool = True
-    navigator_user_agent: bool = True
-    navigator_vendor: bool = True
-    outerdimensions: bool = True
-    hairline: bool = True
+    def __init__(
+            self,
+            navigator_webdriver: bool = True,
+            webgl_vendor: bool = True,
+            chrome_app: bool = True,
+            chrome_csi: bool = True,
+            chrome_load_times: bool = True,
+            chrome_runtime: bool = False,
+            iframe_content_window: bool = True,
+            media_codecs: bool = True,
+            navigator_hardware_concurrency: int = 4,
+            navigator_languages: bool = True,
+            navigator_permissions: bool = True,
+            navigator_platform: bool = True,
+            navigator_plugins: bool = True,
+            navigator_user_agent: bool = True,
+            navigator_vendor: bool = True,
+            hairline: bool = True,
+            webgl_vendor_override: str = "Intel Inc.",
+            webgl_renderer_override: str = "Intel Iris OpenGL Engine",
+            navigator_vendor_override: str = "Google Inc.",
+            navigator_user_agent_override: Optional[str] = None,
+            nav_platform: Optional[str] = None,
+            languages: Tuple[str, str] = ("en-US", "en"),
+            chrome_runtime_run_on_insecure_origins: Optional[bool] = False
+    ):
+        # scripts to load
+        self.navigator_webdriver: bool = navigator_webdriver
+        self.webgl_vendor: bool = webgl_vendor
+        self.chrome_app: bool = chrome_app
+        self.chrome_csi: bool = chrome_csi
+        self.chrome_load_times: bool = chrome_load_times
+        self.chrome_runtime: bool = chrome_runtime
+        self.iframe_content_window: bool = iframe_content_window
+        self.media_codecs: bool = media_codecs
+        self.navigator_hardware_concurrency: int = navigator_hardware_concurrency
+        self.navigator_languages: bool = navigator_languages
+        self.navigator_permissions: bool = navigator_permissions
+        self.navigator_platform: bool = navigator_platform
+        self.navigator_plugins: bool = navigator_plugins
+        self.navigator_user_agent: bool = navigator_user_agent
+        self.navigator_vendor: bool = navigator_vendor
+        self.hairline: bool = hairline
 
-    # options
-    vendor: str = "Intel Inc."
-    renderer: str = "Intel Iris OpenGL Engine"
-    nav_vendor: str = "Google Inc."
-    nav_user_agent: str = None
-    nav_platform: str = None
-    languages: Tuple[str] = ("en-US", "en")
-    runOnInsecureOrigins: Optional[bool] = None
+        # options
+        self.webgl_vendor_override: str = webgl_vendor_override
+        self.webgl_renderer_override: str = webgl_renderer_override
+        self.navigator_vendor_override: str = navigator_vendor_override
+        self.navigator_user_agent_override: Optional[str] = navigator_user_agent_override
+        self.navigator_platform_override: Optional[str] = nav_platform
+        self.languages_override: Tuple[str, str] = languages
+        self.chrome_runtime_run_on_insecure_origins: Optional[bool] = chrome_runtime_run_on_insecure_origins
+
+    @property
+    def script_payload(self) -> str:
+        """
+        Wraps enabled scripts in an immediately invoked function expression
+        """
+        newline = "\n"
+        return f"(() => {newline.join(self.enabled_scripts)})();"
 
     @property
     def enabled_scripts(self):
         opts = json.dumps(
             {
-                "webgl_vendor": self.vendor,
-                "webgl_renderer": self.renderer,
-                "navigator_vendor": self.nav_vendor,
-                "navigator_platform": self.nav_platform,
-                "navigator_user_agent": self.nav_user_agent,
-                "languages": list(self.languages),
-                "runOnInsecureOrigins": self.runOnInsecureOrigins,
+                "webgl_vendor": self.webgl_vendor_override,
+                "webgl_renderer": self.webgl_renderer_override,
+                "navigator_vendor": self.navigator_vendor_override,
+                "navigator_platform": self.navigator_platform_override,
+                "navigator_user_agent": self.navigator_user_agent_override,
+                "languages_override": list(self.languages_override),
+                "chrome_runtime_run_on_insecure_origins": self.chrome_runtime_run_on_insecure_origins,
             }
         )
         # defined options constant
@@ -130,21 +160,101 @@ class StealthConfig:
             yield SCRIPTS["navigator_user_agent"]
         if self.navigator_vendor:
             yield SCRIPTS["navigator_vendor"]
-        if self.webdriver:
-            yield SCRIPTS["webdriver"]
-        if self.outerdimensions:
-            yield SCRIPTS["outerdimensions"]
+        if self.navigator_webdriver:
+            yield SCRIPTS["navigator_webdriver"]
         if self.webgl_vendor:
             yield SCRIPTS["webgl_vendor"]
 
+    def _hook_methods_that_return_browser_async(self, original_obj: async_api.BrowserType, hook_launch_args: bool):
+        """
+        Given a BrowserType object, hooks all the methods that return a Browser object.
+        Optionally hooks the CLI args as well
+        """
 
-def stealth_sync(page: SyncPage, config: StealthConfig = None):
-    """teaches synchronous playwright Page to be stealthy like a ninja!"""
-    for script in (config or StealthConfig()).enabled_scripts:
-        page.add_init_script(script)
+        for name, method in inspect.getmembers(original_obj, predicate=inspect.ismethod):
+            if method.__annotations__.get('return') in ("Browser", "BrowserContext"):
+                original_obj.__setattr__(name, self._generate_hooked_method_that_returns_browser_async(method, hook_launch_args))
 
+    def _generate_hooked_method_that_returns_browser_async(self, method: Callable, hook_launch_args: bool):
+        signature = inspect.signature(method).parameters
+        args_parameter = signature.get("args")
 
-async def stealth_async(page: AsyncPage, config: StealthConfig = None):
-    """teaches asynchronous playwright Page to be stealthy like a ninja!"""
-    for script in (config or StealthConfig()).enabled_scripts:
-        await page.add_init_script(script)
+        async def hooked_method(**kwargs):
+            if args_parameter is not None:
+                # launch, launch_persistent_context
+                if hook_launch_args:
+                    cli_args = self._patch_blink_features_arg(kwargs.get("args", None))
+                browser_or_context = await method(**{**kwargs, "args": cli_args})
+            else:
+                # connect, connect_over_rdp
+                browser_or_context = await method(**kwargs)
+            if isinstance(browser_or_context, async_api.BrowserContext):
+                await self.stealth_async(cast(browser_or_context, async_api.BrowserContext))
+            elif isinstance(browser_or_context, async_api.Browser):
+                browser: async_api.Browser = browser_or_context
+                browser.new_page = self._generate_hooked_new_page_async(browser.new_page)
+                browser.new_context = self._generate_hooked_new_page_async(browser.new_page)
+            else:
+                raise TypeError(f"unexpected type from function (bug): {method.__name__} returned {browser_or_context}")
+
+            return browser_or_context
+
+        return hooked_method
+
+    def _generate_hooked_new_page_async(self, new_page: Callable):
+        async def hooked_new_page():
+            page = await new_page()
+            await self.stealth_async(page)
+            return page
+
+        return hooked_new_page
+
+    def _generate_hooked_new_context_async(self, new_context: Callable):
+        async def hooked_new_context(**kwargs):
+            context = await new_context(**kwargs)
+            await self.stealth_async(context)
+            return context
+
+        return hooked_new_context
+
+    def hook_context_async(self, ctx: async_api.Playwright) -> async_api.Playwright:
+        """
+        Instruments the playwright context object. Any browser connected to or any page created with any method from
+        the patched context should have stealth mitigations applied automatically.
+        """
+        for browser in ("chromium", "firefox", "webkit"):
+            self._hook_methods_that_return_browser_async(ctx[browser], hook_launch_args=browser == "chromium")
+
+        return ctx
+
+    def hook_context_sync(self, ctx: sync_api.Playwright) -> sync_api.Playwright:
+        for browser in ("chromium", "firefox", "webkit"):
+            self._hook_methods_that_return_browser_async(ctx[browser], hook_launch_args=browser == "chromium")
+
+        return ctx
+
+    def stealth_sync(self, page_or_context: Union[sync_api.Page, sync_api.BrowserContext]) -> None:
+        page_or_context.add_init_script(self.script_payload)
+
+    async def stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
+        await page_or_context.add_init_script(self.script_payload)
+
+    @staticmethod
+    def _patch_blink_features_arg(existing_args: Optional[List[str]]) -> List[str]:
+        """Patches CLI args list to disable AutomationControlled blink feature, while preserving other args"""
+        new_args = []
+        disable_blink_features_prefix = "--disable-blink-features="
+        automation_controlled_feature_name = "AutomationControlled"
+        for arg in enumerate(existing_args or []):
+            stripped_arg = arg.strip()
+            if stripped_arg.startswith(disable_blink_features_prefix):
+                if automation_controlled_feature_name not in stripped_arg:
+                    stripped_arg += f",{automation_controlled_feature_name}"
+                    new_args.append(stripped_arg)
+                    break
+            else:
+                new_args.append(arg)
+        else:  # no break
+            # no blink features disabled, no need to be careful how we modify the command line
+            new_args.append(f"{disable_blink_features_prefix}{automation_controlled_feature_name}")
+        return new_args

@@ -1,2 +1,0 @@
-include playwright_stealth/js/*.js
-global-exclude *_test.py
