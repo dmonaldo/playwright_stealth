@@ -4,10 +4,7 @@ log("loading navigator.webdriver.js");
 // techniques exist to detect Object.defineProperty etc., so if we can avoid it we do
 // if args include --disable-blink-features=AutomationControlled, we do not need to mock this
 if (navigator.webdriver) {
-  Object.defineProperty(Object.getPrototypeOf(navigator), "webdriver", {
-    set: undefined,
-    enumerable: true,
-    configurable: true,
+  utils.replaceProperty(Object.getPrototypeOf(navigator), "webdriver", {
     get: new Proxy(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), "webdriver").get, {
       apply: (target, thisArg, args) => {
         // emulate getter call validation
