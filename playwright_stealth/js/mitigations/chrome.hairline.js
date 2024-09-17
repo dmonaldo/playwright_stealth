@@ -1,9 +1,7 @@
+log("loading chrome.hairline.js");
 // https://intoli.com/blog/making-chrome-headless-undetectable/
 // store the existing descriptor
-const elementDescriptor = Object.getOwnPropertyDescriptor(
-  HTMLElement.prototype,
-  "offsetHeight"
-);
+const elementDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
 
 // redefine the property with a patched descriptor
 Object.defineProperty(HTMLDivElement.prototype, "offsetHeight", {

@@ -1,3 +1,5 @@
+log("loading webgl.vendor.js");
+
 const getParameterProxyHandler = {
   apply: function (target, ctx, args) {
     const param = (args || [])[0];

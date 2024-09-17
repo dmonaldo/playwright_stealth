@@ -1,4 +1,6 @@
-data = {
+log("loading navigator.plugins.js");
+
+const data = {
   mimeTypes: [
     {
       type: "application/pdf",
@@ -50,18 +52,8 @@ data = {
 // That means we're running headful
 const hasPlugins = "plugins" in navigator && navigator.plugins.length;
 if (!hasPlugins) {
-  const mimeTypes = generateMagicArray(
-    data.mimeTypes,
-    MimeTypeArray.prototype,
-    MimeType.prototype,
-    "type"
-  );
-  const plugins = generateMagicArray(
-    data.plugins,
-    PluginArray.prototype,
-    Plugin.prototype,
-    "name"
-  );
+  const mimeTypes = generateMagicArray(data.mimeTypes, MimeTypeArray.prototype, MimeType.prototype, "type");
+  const plugins = generateMagicArray(data.plugins, PluginArray.prototype, Plugin.prototype, "name");
 
   // Plugin and MimeType cross-reference each other, let's do that now
   // Note: We're looping through `data.plugins` here, not the generated `plugins`

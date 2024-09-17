@@ -1,3 +1,5 @@
+log("loading iframe.contentWindow.js");
+
 try {
   // Adds a contentWindow proxy to the provided iframe element
   const addContentWindowProxy = (iframe) => {
@@ -72,8 +74,7 @@ try {
         return Reflect.get(target, key);
       },
       apply: function (target, thisArg, args) {
-        const isIframe =
-          args && args.length && `${args[0]}`.toLowerCase() === "iframe";
+        const isIframe = args && args.length && `${args[0]}`.toLowerCase() === "iframe";
         if (!isIframe) {
           // Everything as usual
           return target.apply(thisArg, args);

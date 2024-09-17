@@ -3,14 +3,20 @@ from playwright.async_api import async_playwright
 
 from playwright_stealth.stealth import StealthConfig
 
-# todo: for every browser, for every connection method
-
-async def test_navigator_webdriver():
+@pytest.mark.parametrize("browser_type", ["chromium", "firefox", "webkit"])
+async def test_payload_executes_successfully(browser_type: str):
     async with async_playwright() as p:
-        StealthConfig().hook_context_async(p)
-        browser = await p.chromium.launch()
+        browser = await getattr(p, browser_type).launch()
         page = await browser.new_page()
-        assert await page.evaluate("navigator.webdriver") is False
-        other_context = await browser.new_context()
-        other_page = await other_context.new_page()
-        assert await other_page.evaluate("navigator.webdriver") is False
+        await page.evaluate(StealthConfig().script_payload)
+
+
+async def test_navigator_webdriver(hooked_async_browser):
+    assert await (await hooked_async_browser.new_page()).evaluate("navigator.webdriver") is False
+    assert await (await (await hooked_async_browser.new_context()).new_page()).evaluate("navigator.webdriver") is False
+
+# async def test_navigator_languages(hooked_async_browser):
+#     assert await (await hooked_async_browser.new_page()).evaluate("navigator.webdriver") is False
+#     assert await (await (await hooked_async_browser.new_context()).new_page()).evaluate("navigator.webdriver") is False
+
+

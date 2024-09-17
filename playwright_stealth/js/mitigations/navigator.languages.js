@@ -1,3 +1,5 @@
-Object.defineProperty(Object.getPrototypeOf(navigator), "languages", {
-  get: () => opts.languages || ["en-US", "en"],
+log("loading navigator.languages.js");
+
+utils.replaceProperty(Object.getPrototypeOf(navigator), "languages", {
+  get: () => opts.languages,
 });

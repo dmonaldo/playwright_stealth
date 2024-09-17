@@ -1,3 +1,5 @@
+log("loading navigator.vendor.js");
+
 Object.defineProperty(Object.getPrototypeOf(navigator), "vendor", {
   get: () => opts.navigator_vendor || "Google Inc.",
 });

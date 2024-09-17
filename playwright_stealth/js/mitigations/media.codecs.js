@@ -1,3 +1,4 @@
+log("loading media.codec.js");
 /**
  * Input might look funky, we need to normalize it so e.g. whitespace isn't an issue for our spoofing.
  *

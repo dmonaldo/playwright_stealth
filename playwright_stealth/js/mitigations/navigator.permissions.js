@@ -1,3 +1,5 @@
+log("loading navigator.permissions.js");
+
 const handler = {
   apply: function (target, ctx, args) {
     const param = (args || [])[0];

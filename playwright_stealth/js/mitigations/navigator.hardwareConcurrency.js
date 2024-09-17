@@ -1,8 +1,7 @@
-const patchNavigator = (name, value) =>
-  utils.replaceProperty(Object.getPrototypeOf(navigator), name, {
-    get() {
-      return value;
-    },
-  });
+log("loading navigator.hardwareConcurrency");
 
-patchNavigator("hardwareConcurrency", opts.navigator_hardware_concurrency || 4);
+utils.replaceProperty(Object.getPrototypeOf(navigator), "hardwareConcurrency", {
+  get() {
+    return opts.navigator_hardware_concurrency;
+  },
+});

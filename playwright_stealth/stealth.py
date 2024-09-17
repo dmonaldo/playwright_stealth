@@ -114,8 +114,7 @@ class StealthConfig:
         """
         Wraps enabled scripts in an immediately invoked function expression
         """
-        newline = "\n"
-        return f"(() => {newline.join(self.enabled_scripts)})();"
+        return "(() => {\n" + "\n".join(self.enabled_scripts) + "\n})();"
 
     @property
     def enabled_scripts(self):
@@ -186,7 +185,7 @@ class StealthConfig:
                 # launch, launch_persistent_context
                 patched_args = {}
                 if hook_launch_args:
-                    new_args = self._patch_blink_features_cli_arg(kwargs.get("args", None))
+                    # new_args = self._patch_blink_features_cli_arg(kwargs.get("args", None))
                     new_args = self._patch_cli_arg(new_args, f"--lang={','.join(self.languages_override)}")
                     patched_args["args"] = new_args
                 browser_or_context = await method(**{**kwargs, **patched_args})
@@ -278,7 +277,7 @@ class StealthConfig:
                 break
             else:
                 new_args.append(arg)
-        else: # no break
+        else:  # no break
             # none of the existing switches overlap with the one we're trying to set
             new_args.append(flag)
         return new_args
