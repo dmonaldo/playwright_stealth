@@ -182,9 +182,10 @@ class StealthConfig:
         async def hooked_method(**kwargs):
             if args_parameter is not None:
                 # launch, launch_persistent_context
+                patched_args = {}
                 if hook_launch_args:
-                    cli_args = self._patch_blink_features_arg(kwargs.get("args", None))
-                browser_or_context = await method(**{**kwargs, "args": cli_args})
+                    patched_args["args"] = self._patch_blink_features_arg(kwargs.get("args", None))
+                browser_or_context = await method(**{**kwargs, **patched_args})
             else:
                 # connect, connect_over_rdp
                 browser_or_context = await method(**kwargs)
@@ -193,7 +194,7 @@ class StealthConfig:
             elif isinstance(browser_or_context, async_api.Browser):
                 browser: async_api.Browser = browser_or_context
                 browser.new_page = self._generate_hooked_new_page_async(browser.new_page)
-                browser.new_context = self._generate_hooked_new_page_async(browser.new_page)
+                browser.new_context = self._generate_hooked_new_page_async(browser.new_context)
             else:
                 raise TypeError(f"unexpected type from function (bug): {method.__name__} returned {browser_or_context}")
 
@@ -245,13 +246,12 @@ class StealthConfig:
         new_args = []
         disable_blink_features_prefix = "--disable-blink-features="
         automation_controlled_feature_name = "AutomationControlled"
-        for arg in enumerate(existing_args or []):
+        for arg in existing_args or []:
             stripped_arg = arg.strip()
             if stripped_arg.startswith(disable_blink_features_prefix):
                 if automation_controlled_feature_name not in stripped_arg:
                     stripped_arg += f",{automation_controlled_feature_name}"
-                    new_args.append(stripped_arg)
-                    break
+                new_args.append(stripped_arg)
             else:
                 new_args.append(arg)
         else:  # no break
