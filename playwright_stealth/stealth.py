@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import inspect
 import json
+import re
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Dict, List, Union, cast
@@ -184,7 +186,9 @@ class StealthConfig:
                 # launch, launch_persistent_context
                 patched_args = {}
                 if hook_launch_args:
-                    patched_args["args"] = self._patch_blink_features_arg(kwargs.get("args", None))
+                    new_args = self._patch_blink_features_cli_arg(kwargs.get("args", None))
+                    new_args = self._patch_cli_arg(new_args, f"--lang={','.join(self.languages_override)}")
+                    patched_args["args"] = new_args
                 browser_or_context = await method(**{**kwargs, **patched_args})
             else:
                 # connect, connect_over_rdp
@@ -241,7 +245,7 @@ class StealthConfig:
         await page_or_context.add_init_script(self.script_payload)
 
     @staticmethod
-    def _patch_blink_features_arg(existing_args: Optional[List[str]]) -> List[str]:
+    def _patch_blink_features_cli_arg(existing_args: Optional[List[str]]) -> List[str]:
         """Patches CLI args list to disable AutomationControlled blink feature, while preserving other args"""
         new_args = []
         disable_blink_features_prefix = "--disable-blink-features="
@@ -257,4 +261,24 @@ class StealthConfig:
         else:  # no break
             # no blink features disabled, no need to be careful how we modify the command line
             new_args.append(f"{disable_blink_features_prefix}{automation_controlled_feature_name}")
+        return new_args
+
+    @staticmethod
+    def _patch_cli_arg(existing_args: Optional[List[str]], flag: str) -> List[str]:
+        """Patches CLI args list with any arg, warns if the user passed their own value in themselves"""
+        new_args = []
+        switch_name = re.search("(.*)=?", flag).group(1)
+        for arg in existing_args or []:
+            stripped_arg = arg.strip()
+            if stripped_arg.startswith(switch_name):
+                warnings.warn("playwright-stealth is trying to modify a flag you have set yourself already."
+                              f"Either disable the mitigation or don't specify this flag manually {flag=}"
+                              f"to avoid this warning. playwright-stealth has overridden your flag")
+                new_args.append(flag)
+                break
+            else:
+                new_args.append(arg)
+        else: # no break
+            # none of the existing switches overlap with the one we're trying to set
+            new_args.append(flag)
         return new_args
