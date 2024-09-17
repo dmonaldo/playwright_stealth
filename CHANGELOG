@@ -1,4 +1,4 @@
 2.0.0
  - new methods to hook context
  - fix: scripts will not crash if in headful mode f9f84861
- - ft: use replaceProperty util which copies existing property descriptors f9203e45
+ - ft: use replaceProperty util which copies existing property descriptors 2b9b4b39
