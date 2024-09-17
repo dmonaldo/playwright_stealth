@@ -1,3 +1,4 @@
+log("loading chrome.load.times.js");
 if (!window.chrome) {
   // Use the exact property descriptor found in headful Chrome
   // fetch it via `Object.getOwnPropertyDescriptor(window, 'chrome')`
@@ -11,15 +12,11 @@ if (!window.chrome) {
 
 // That means we're running headful and don't need to mock anything
 if ("loadTimes" in window.chrome) {
-  throw new Error("skipping chrome loadtimes update, running in headfull mode");
+  warn("skipping chrome loadtimes update, running in headful mode");
 }
 
 // Check that the Navigation Timing API v1 + v2 is available, we need that
-if (
-  window.performance ||
-  window.performance.timing ||
-  window.PerformancePaintTiming
-) {
+if (window.performance?.timing || window.PerformancePaintTiming) {
   const { performance } = window;
 
   // Some stuff is not available on about:blank as it requires a navigation to occur,
@@ -32,22 +29,17 @@ if (
   // The API exposes some funky info regarding the connection
   const protocolInfo = {
     get connectionInfo() {
-      const ntEntry =
-        performance.getEntriesByType("navigation")[0] || ntEntryFallback;
+      const ntEntry = performance.getEntriesByType("navigation")[0] || ntEntryFallback;
       return ntEntry.nextHopProtocol;
     },
     get npnNegotiatedProtocol() {
       // NPN is deprecated in favor of ALPN, but this implementation returns the
       // HTTP/2 or HTTP2+QUIC/39 requests negotiated via ALPN.
-      const ntEntry =
-        performance.getEntriesByType("navigation")[0] || ntEntryFallback;
-      return ["h2", "hq"].includes(ntEntry.nextHopProtocol)
-        ? ntEntry.nextHopProtocol
-        : "unknown";
+      const ntEntry = performance.getEntriesByType("navigation")[0] || ntEntryFallback;
+      return ["h2", "hq"].includes(ntEntry.nextHopProtocol) ? ntEntry.nextHopProtocol : "unknown";
     },
     get navigationType() {
-      const ntEntry =
-        performance.getEntriesByType("navigation")[0] || ntEntryFallback;
+      const ntEntry = performance.getEntriesByType("navigation")[0] || ntEntryFallback;
       return ntEntry.type;
     },
     get wasAlternateProtocolAvailable() {
@@ -59,15 +51,13 @@ if (
     get wasFetchedViaSpdy() {
       // SPDY is deprecated in favor of HTTP/2, but this implementation returns
       // true for HTTP/2 or HTTP2+QUIC/39 as well.
-      const ntEntry =
-        performance.getEntriesByType("navigation")[0] || ntEntryFallback;
+      const ntEntry = performance.getEntriesByType("navigation")[0] || ntEntryFallback;
       return ["h2", "hq"].includes(ntEntry.nextHopProtocol);
     },
     get wasNpnNegotiated() {
       // NPN is deprecated in favor of ALPN, but this implementation returns true
       // for HTTP/2 or HTTP2+QUIC/39 requests negotiated via ALPN.
-      const ntEntry =
-        performance.getEntriesByType("navigation")[0] || ntEntryFallback;
+      const ntEntry = performance.getEntriesByType("navigation")[0] || ntEntryFallback;
       return ["h2", "hq"].includes(ntEntry.nextHopProtocol);
     },
   };
