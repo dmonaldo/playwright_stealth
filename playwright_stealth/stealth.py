@@ -57,7 +57,6 @@ class Stealth:
             yield 'console.log("last script")'
         ```
     """
-    _PATCHED_ATTR_NAME = "playwright_stealth_patched"
 
     def __init__(
             self,
@@ -182,8 +181,8 @@ class Stealth:
             ...
         """
         async with ctx as yielded_value:
-            for browser in ("chromium", "firefox", "webkit"):
-                self._hook_methods_that_return_browser(yielded_value[browser], chromium_mode=browser == "chromium")
+            for browser in (yielded_value.chromium, yielded_value.firefox, yielded_value.webkit):
+                self._hook_methods_that_return_browser(browser, chromium_mode=browser.name == "chromium")
             yield yielded_value
 
     @contextmanager
@@ -197,11 +196,11 @@ class Stealth:
             ...
         """
         with ctx as yielded_value:
-            for browser in ("chromium", "firefox", "webkit"):
-                self._hook_methods_that_return_browser(yielded_value[browser], chromium_mode=browser == "chromium")
+            for browser in (yielded_value.chromium, yielded_value.firefox, yielded_value.webkit):
+                self._hook_methods_that_return_browser(browser, chromium_mode=browser.name == "chromium")
             yield yielded_value
 
-    async def stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
+    async def apply_stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
         await page_or_context.add_init_script(self.script_payload)
 
     def stealth_sync(self, page_or_context: Union[sync_api.Page, sync_api.BrowserContext]) -> None:
@@ -232,19 +231,19 @@ class Stealth:
         """
         for name, method in inspect.getmembers(original_obj, predicate=inspect.ismethod):
             if method.__annotations__.get('return') in ("Browser", "BrowserContext"):
-                method = self._generate_hooked_method_that_returns_browser_async(method, chromium_mode)
+                method = self._generate_hooked_method_that_returns_browser(method, chromium_mode)
                 setattr(original_obj, name, method)
 
-    def _generate_hooked_method_that_returns_browser_async(self, method: Callable, chromium_mode: bool):
+    def _generate_hooked_method_that_returns_browser(self, method: Callable, chromium_mode: bool):
         async def hooked_method(*args, **kwargs):
             browser_or_context = await method(*args, **self._kwargs_with_patched_cli_arg(method, kwargs, chromium_mode))
             if isinstance(browser_or_context, async_api.BrowserContext):
-                await self.stealth_async(browser_or_context)
-                setattr(browser_or_context, self._PATCHED_ATTR_NAME, True)
+                context: async_api.BrowserContext = browser_or_context
+                context.new_page = self._generate_hooked_new_page(context.new_page)
             elif isinstance(browser_or_context, async_api.Browser):
                 browser: async_api.Browser = browser_or_context
-                browser.new_page = self._generate_hooked_browser_method(browser.new_page)
-                browser.new_context = self._generate_hooked_browser_method(browser.new_context)
+                browser.new_page = self._generate_hooked_new_page(browser.new_page)
+                browser.new_context = self._generate_hooked_new_context(browser.new_context)
             else:
                 raise TypeError(f"unexpected type from function (bug): {method.__name__} returned {browser_or_context}")
 
@@ -252,27 +251,35 @@ class Stealth:
 
         return hooked_method
 
-    def _generate_hooked_browser_method(self, new_page_or_new_context_method: Callable) -> Callable:
+    def _generate_hooked_new_context(self, new_context_method: Callable) -> Callable:
+        async def hooked_new_context(*args, **kwargs):
+            context = await new_context_method(*args, **kwargs)
+            context.new_page = self._generate_hooked_new_page(context.new_page)
+            return context
+
+        def hooked_browser_method_sync(*args, **kwargs):
+            context = new_context_method(*args, **kwargs)
+            context.new_page = self._generate_hooked_new_page(context.new_page)
+            return context
+
+        if inspect.iscoroutinefunction(new_context_method):
+            return hooked_new_context
+        return hooked_browser_method_sync
+
+    def _generate_hooked_new_page(self, new_page_or_new_context_method: Callable) -> Callable:
         """
         Returns a hooked method (async or sync) for new_page or new_context.
         *args and **kwargs even though these methods may not take any number of arguments,
         we want to preserve accurate stack traces (ie, it's less confusing if the
         """
-
         async def hooked_browser_method_async(*args, **kwargs):
             page_or_context = await new_page_or_new_context_method(*args, **kwargs)
-            # if the browser context has already been patched, and this is a call to new_page within that context,
-            # we do not want to add the init scripts twice
-            if not getattr(new_page_or_new_context_method.__self__, self._PATCHED_ATTR_NAME, False):
-                await self.stealth_async(page_or_context)
-                setattr(page_or_context, self._PATCHED_ATTR_NAME, True)
+            await self.apply_stealth_async(page_or_context)
             return page_or_context
 
         def hooked_browser_method_sync(*args, **kwargs):
             page_or_context = new_page_or_new_context_method(*args, **kwargs)
-            if not getattr(new_page_or_new_context_method.__self__, self._PATCHED_ATTR_NAME, False):
-                self.stealth_sync(page_or_context)
-                setattr(page_or_context, self._PATCHED_ATTR_NAME, True)
+            self.stealth_sync(page_or_context)
             return page_or_context
 
         if inspect.iscoroutinefunction(new_page_or_new_context_method):

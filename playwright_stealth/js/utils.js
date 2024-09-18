@@ -437,3 +437,5 @@ utils.materializeFns = (fnStrObj = { hello: "() => 'world'" }) => {
 
 const log = (...args) => opts.debug && console.log("[playwright-stealth]:", ...args);
 const warn = (...args) => opts.debug && console.warn("[playwright-stealth]:", ...args);
+
+log(opts);

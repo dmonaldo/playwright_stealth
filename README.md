@@ -1,3 +1,5 @@
+from playwright_stealth import Stealth
+
 # playwright_stealth
 
 Transplanted from [puppeteer-extra-plugin-stealth](https://github.com/berstend/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth), with some improvements. Don't expect this to bypass anything but the simplest of bot detection methods. Consider this a proof-of-concept starting point. Anyone serious about anti-bot detections wouldn't be publishing their methods :)
@@ -9,41 +11,45 @@ $ pip install playwright-stealth
 ```
 
 ## Example Usage
-```python
 
-from playwright.sync_api import sync_playwright
+```python
+import asyncio
+
+from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
 
-with sync_playwright() as p:
-    for browser_type in [p.chromium, p.firefox, p.webkit]:
-        browser = browser_type.launch()
-        page = browser.new_page()
-        stealth_sync(page)
-        page.goto('http://whatsmyuseragent.org/')
-        page.screenshot(path=f'example-{browser_type.name}.png')
-        browser.close()
-
-```
-### async
-```python
-# -*- coding: utf-8 -*-
-import asyncio
-from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
 
 async def main():
+    # This is the recommended usage. All pages created will have stealth applied:
+    async with Stealth().use_async(async_playwright()) as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        print("from new_page: ", await page.evaluate("navigator.webdriver"))
+        different_context = await browser.new_context()
+        page_from_different_context = await different_context.new_page()
+        print("from new_context: ", await page_from_different_context.evaluate("navigator.webdriver"))
+
+    # Specifying config options and applying evasions to an entire context:
+    custom_hardware_concurrency = 32
+    stealth = Stealth(
+        navigator_hardware_concurrency=custom_hardware_concurrency,
+        init_scripts_only=True
+    )
     async with async_playwright() as p:
-        for browser_type in [p.chromium, p.firefox, p.webkit]:
-            browser = await browser_type.launch()
-            page = await browser.new_page()
-            await stealth_async(page)
-            await page.goto('http://whatsmyuseragent.org/')
-            await page.screenshot(path=f'example-{browser_type.name}.png')
-            await browser.close()
+        browser = await p.chromium.launch()
+        context = await browser.new_context()
+        await stealth.apply_stealth_async(context)
+        page_1 = await context.new_page()
+        concurrency_on_page_1_mocked = await page_1.evaluate("navigator.hardwareConcurrency") == custom_hardware_concurrency
+        print("manually applied stealth applied to page 1:", concurrency_on_page_1_mocked)
+        page_2 = await context.new_page()
+        concurrency_on_page_2_mocked = await page_2.evaluate("navigator.hardwareConcurrency") == custom_hardware_concurrency
+        print("manually applied stealth applied to page 2:", concurrency_on_page_2_mocked)
 
-asyncio.get_event_loop().run_until_complete(main())
+
+asyncio.run(main())
 ```
-
+A set of 
 ## Test results
 
 ### playwright with stealth
