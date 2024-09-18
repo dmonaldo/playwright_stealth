@@ -67,7 +67,7 @@ if (window.performance?.timing || window.PerformancePaintTiming) {
 
   // Truncate number to specific number of decimals, most of the `loadTimes` stuff has 3
   function toFixed(num, fixed) {
-    var re = new RegExp("^-?\\d+(?:.\\d{0," + (fixed || -1) + "})?");
+    const re = new RegExp("^-?\\d+(?:.\\d{0," + (fixed || -1) + "})?");
     return num.toString().match(re)[0];
   }
 
