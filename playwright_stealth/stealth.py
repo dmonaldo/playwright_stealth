@@ -4,8 +4,10 @@ import json
 import re
 import warnings
 from collections.abc import Callable
+from contextlib import contextmanager, asynccontextmanager
+from copy import deepcopy
 from pathlib import Path
-from typing import Dict, List, Union, cast
+from typing import Dict, List, Union, Any
 
 from playwright import async_api, sync_api
 
@@ -38,7 +40,7 @@ SCRIPTS: Dict[str, str] = {
 from typing import Tuple, Optional
 
 
-class StealthConfig:
+class Stealth:
     """
     Playwright stealth configuration that applies stealth strategies to playwright page objects.
     The stealth strategies are contained in ./js package and are basic javascript scripts that are executed
@@ -55,6 +57,7 @@ class StealthConfig:
             yield 'console.log("last script")'
         ```
     """
+    _PATCHED_ATTR_NAME = "playwright_stealth_patched"
 
     def __init__(
             self,
@@ -80,7 +83,8 @@ class StealthConfig:
             navigator_user_agent_override: Optional[str] = None,
             nav_platform: Optional[str] = None,
             languages: Tuple[str, str] = ("en-US", "en"),
-            chrome_runtime_run_on_insecure_origins: Optional[bool] = False
+            chrome_runtime_run_on_insecure_origins: bool = False,
+            init_scripts_only: bool = False
     ):
         # scripts to load
         self.navigator_webdriver: bool = navigator_webdriver
@@ -108,6 +112,7 @@ class StealthConfig:
         self.navigator_platform_override: Optional[str] = nav_platform
         self.languages_override: Tuple[str, str] = languages
         self.chrome_runtime_run_on_insecure_origins: Optional[bool] = chrome_runtime_run_on_insecure_origins
+        self.init_scripts_only: bool = init_scripts_only
 
     @property
     def script_payload(self) -> str:
@@ -166,38 +171,80 @@ class StealthConfig:
         if self.webgl_vendor:
             yield SCRIPTS["webgl_vendor"]
 
-    def _hook_methods_that_return_browser_async(self, original_obj: async_api.BrowserType, hook_launch_args: bool):
+    @asynccontextmanager
+    async def use_async(self, ctx: async_api.PlaywrightContextManager) -> async_api.PlaywrightContextManager:
         """
-        Given a BrowserType object, hooks all the methods that return a Browser object.
-        Optionally hooks the CLI args as well
+        Instruments the playwright context manager.
+        Any browser connected to or any page created with any method from
+        the patched context should have stealth mitigations applied automatically.
+
+        async with Stealth().use_async(async_playwright()) as p:
+            ...
         """
+        async with ctx as yielded_value:
+            for browser in ("chromium", "firefox", "webkit"):
+                self._hook_methods_that_return_browser(yielded_value[browser], chromium_mode=browser == "chromium")
+            yield yielded_value
 
-        for name, method in inspect.getmembers(original_obj, predicate=inspect.ismethod):
-            if method.__annotations__.get('return') in ("Browser", "BrowserContext"):
-                original_obj.__setattr__(name, self._generate_hooked_method_that_returns_browser_async(method, hook_launch_args))
+    @contextmanager
+    def use_sync(self, ctx: sync_api.PlaywrightContextManager) -> sync_api.PlaywrightContextManager:
+        """
+        Instruments the playwright context manager.
+        Any browser connected to or any page created with any method from
+        the patched context should have stealth mitigations applied automatically.
 
-    def _generate_hooked_method_that_returns_browser_async(self, method: Callable, hook_launch_args: bool):
+        with Stealth().use_sync(sync_playwright()) as p:
+            ...
+        """
+        with ctx as yielded_value:
+            for browser in ("chromium", "firefox", "webkit"):
+                self._hook_methods_that_return_browser(yielded_value[browser], chromium_mode=browser == "chromium")
+            yield yielded_value
+
+    async def stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
+        await page_or_context.add_init_script(self.script_payload)
+
+    def stealth_sync(self, page_or_context: Union[sync_api.Page, sync_api.BrowserContext]) -> None:
+        page_or_context.add_init_script(self.script_payload)
+
+    def _kwargs_with_patched_cli_arg(self, method: Callable, packed_kwargs: Dict[str, Any], chromium_mode: bool) -> \
+            Dict[str, Any]:
         signature = inspect.signature(method).parameters
         args_parameter = signature.get("args")
 
-        async def hooked_method(**kwargs):
-            if args_parameter is not None:
-                # launch, launch_persistent_context
-                patched_args = {}
-                if hook_launch_args:
-                    # new_args = self._patch_blink_features_cli_arg(kwargs.get("args", None))
-                    new_args = self._patch_cli_arg(new_args, f"--lang={','.join(self.languages_override)}")
-                    patched_args["args"] = new_args
-                browser_or_context = await method(**{**kwargs, **patched_args})
-            else:
-                # connect, connect_over_rdp
-                browser_or_context = await method(**kwargs)
+        # deep just in case
+        new_kwargs = deepcopy(packed_kwargs)
+        if args_parameter is not None:
+            if chromium_mode and not self.init_scripts_only:
+                new_cli_args = new_kwargs.get("args", args_parameter.default)
+                if self.navigator_webdriver:
+                    new_cli_args = self._patch_blink_features_cli_args(new_cli_args or [])
+                if self.navigator_languages:
+                    languages_cli_flag = f"--lang={','.join(self.languages_override)}"
+                    new_cli_args = self._patch_cli_arg(new_cli_args or [], languages_cli_flag)
+                new_kwargs["args"] = new_cli_args
+        return new_kwargs
+
+    def _hook_methods_that_return_browser(self, original_obj: async_api.BrowserType, chromium_mode: bool) -> None:
+        """
+        Given a BrowserType object, hooks all the methods that return a Browser object.
+        Can be used with sync and async methods
+        """
+        for name, method in inspect.getmembers(original_obj, predicate=inspect.ismethod):
+            if method.__annotations__.get('return') in ("Browser", "BrowserContext"):
+                method = self._generate_hooked_method_that_returns_browser_async(method, chromium_mode)
+                setattr(original_obj, name, method)
+
+    def _generate_hooked_method_that_returns_browser_async(self, method: Callable, chromium_mode: bool):
+        async def hooked_method(*args, **kwargs):
+            browser_or_context = await method(*args, **self._kwargs_with_patched_cli_arg(method, kwargs, chromium_mode))
             if isinstance(browser_or_context, async_api.BrowserContext):
-                await self.stealth_async(cast(browser_or_context, async_api.BrowserContext))
+                await self.stealth_async(browser_or_context)
+                setattr(browser_or_context, self._PATCHED_ATTR_NAME, True)
             elif isinstance(browser_or_context, async_api.Browser):
                 browser: async_api.Browser = browser_or_context
-                browser.new_page = self._generate_hooked_new_page_async(browser.new_page)
-                browser.new_context = self._generate_hooked_new_page_async(browser.new_context)
+                browser.new_page = self._generate_hooked_browser_method(browser.new_page)
+                browser.new_context = self._generate_hooked_browser_method(browser.new_context)
             else:
                 raise TypeError(f"unexpected type from function (bug): {method.__name__} returned {browser_or_context}")
 
@@ -205,46 +252,35 @@ class StealthConfig:
 
         return hooked_method
 
-    def _generate_hooked_new_page_async(self, new_page: Callable):
-        async def hooked_new_page():
-            page = await new_page()
-            await self.stealth_async(page)
-            return page
-
-        return hooked_new_page
-
-    def _generate_hooked_new_context_async(self, new_context: Callable):
-        async def hooked_new_context(**kwargs):
-            context = await new_context(**kwargs)
-            await self.stealth_async(context)
-            return context
-
-        return hooked_new_context
-
-    def hook_context_async(self, ctx: async_api.Playwright) -> async_api.Playwright:
+    def _generate_hooked_browser_method(self, new_page_or_new_context_method: Callable) -> Callable:
         """
-        Instruments the playwright context object. Any browser connected to or any page created with any method from
-        the patched context should have stealth mitigations applied automatically.
+        Returns a hooked method (async or sync) for new_page or new_context.
+        *args and **kwargs even though these methods may not take any number of arguments,
+        we want to preserve accurate stack traces (ie, it's less confusing if the
         """
-        for browser in ("chromium", "firefox", "webkit"):
-            self._hook_methods_that_return_browser_async(ctx[browser], hook_launch_args=browser == "chromium")
 
-        return ctx
+        async def hooked_browser_method_async(*args, **kwargs):
+            page_or_context = await new_page_or_new_context_method(*args, **kwargs)
+            # if the browser context has already been patched, and this is a call to new_page within that context,
+            # we do not want to add the init scripts twice
+            if not getattr(new_page_or_new_context_method.__self__, self._PATCHED_ATTR_NAME, False):
+                await self.stealth_async(page_or_context)
+                setattr(page_or_context, self._PATCHED_ATTR_NAME, True)
+            return page_or_context
 
-    def hook_context_sync(self, ctx: sync_api.Playwright) -> sync_api.Playwright:
-        for browser in ("chromium", "firefox", "webkit"):
-            self._hook_methods_that_return_browser_async(ctx[browser], hook_launch_args=browser == "chromium")
+        def hooked_browser_method_sync(*args, **kwargs):
+            page_or_context = new_page_or_new_context_method(*args, **kwargs)
+            if not getattr(new_page_or_new_context_method.__self__, self._PATCHED_ATTR_NAME, False):
+                self.stealth_sync(page_or_context)
+                setattr(page_or_context, self._PATCHED_ATTR_NAME, True)
+            return page_or_context
 
-        return ctx
-
-    def stealth_sync(self, page_or_context: Union[sync_api.Page, sync_api.BrowserContext]) -> None:
-        page_or_context.add_init_script(self.script_payload)
-
-    async def stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
-        await page_or_context.add_init_script(self.script_payload)
+        if inspect.iscoroutinefunction(new_page_or_new_context_method):
+            return hooked_browser_method_async
+        return hooked_browser_method_sync
 
     @staticmethod
-    def _patch_blink_features_cli_arg(existing_args: Optional[List[str]]) -> List[str]:
+    def _patch_blink_features_cli_args(existing_args: Optional[List[str]]) -> List[str]:
         """Patches CLI args list to disable AutomationControlled blink feature, while preserving other args"""
         new_args = []
         disable_blink_features_prefix = "--disable-blink-features="
@@ -263,11 +299,11 @@ class StealthConfig:
         return new_args
 
     @staticmethod
-    def _patch_cli_arg(existing_args: Optional[List[str]], flag: str) -> List[str]:
+    def _patch_cli_arg(existing_args: List[str], flag: str) -> List[str]:
         """Patches CLI args list with any arg, warns if the user passed their own value in themselves"""
         new_args = []
         switch_name = re.search("(.*)=?", flag).group(1)
-        for arg in existing_args or []:
+        for arg in existing_args:
             stripped_arg = arg.strip()
             if stripped_arg.startswith(switch_name):
                 warnings.warn("playwright-stealth is trying to modify a flag you have set yourself already."

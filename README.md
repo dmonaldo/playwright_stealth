@@ -8,12 +8,11 @@ Transplanted from [puppeteer-extra-plugin-stealth](https://github.com/berstend/p
 $ pip install playwright-stealth
 ```
 
-## Usage
-### sync
+## Example Usage
 ```python
 
 from playwright.sync_api import sync_playwright
-from playwright_stealth import stealth_sync
+from playwright_stealth import Stealth
 
 with sync_playwright() as p:
     for browser_type in [p.chromium, p.firefox, p.webkit]:
