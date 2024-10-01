@@ -1,19 +1,10 @@
 /**
- * A set of shared utility functions specifically for the purpose of modifying native browser APIs without leaving traces.
- *
- * Meant to be passed down in puppeteer and used in the context of the page (everything in here runs in NodeJS as well as a browser).
- *
- * Note: If for whatever reason you need to use this outside of `puppeteer-extra`:
- * Just remove the `module.exports` statement at the very bottom, the rest can be copy pasted into any browser context.
- *
- * Alternatively, take a look at the `extract-stealth-evasions` package to create a finished bundle which includes these utilities.
- *
+ * A set of shared utility functions specifically to modify native browser APIs without leaving traces.
  */
 const utils = {};
 
 /**
  * Wraps a JS Proxy Handler and strips it's presence from error stacks, in case the traps throw.
- *
  * The presence of a JS Proxy can be revealed as it shows up in error stack traces.
  *
  * @param {object} handler - The JS Proxy handler to wrap
@@ -109,7 +100,7 @@ utils.stripErrorWithAnchor = (err, anchor) => {
  * @example
  * replaceProperty(WebGLRenderingContext.prototype, 'getParameter', { value: "alice" })
  * // or
- * replaceProperty(Object.getPrototypeOf(navigator), 'languages_override', { get: () => ['en-US', 'en'] })
+ * replaceProperty(Object.getPrototypeOf(navigator), 'languages', { get: () => ['en-US', 'en'] })
  *
  * @param {object} obj - The object which has the property to replace
  * @param {string} propName - The property name to replace
@@ -143,7 +134,7 @@ utils.preloadCache = () => {
       apply: Reflect.apply.bind(Reflect),
     },
     // Used in `makeNativeString`
-    nativeToStringStr: Function.toString + "", // => `function toString() { [native code] }`
+    nativeToStringStr: Function.toString.toString(), // => `function toString() { [native code] }`
   };
 };
 
@@ -435,7 +426,9 @@ utils.materializeFns = (fnStrObj = { hello: "() => 'world'" }) => {
   );
 };
 
-const log = (...args) => opts.debug && console.log("[playwright-stealth]:", ...args);
-const warn = (...args) => opts.debug && console.warn("[playwright-stealth]:", ...args);
+utils.arrayEqual = (arr1, arr2) => arr1.length === arr2.length && arr1.every((value, index) => value === arr2[index]);
+
+const log = (...args) => opts.script_logging && console.log("[playwright-stealth]:", ...args);
+const warn = (...args) => opts.script_logging && console.warn("[playwright-stealth]:", ...args);
 
 log(opts);

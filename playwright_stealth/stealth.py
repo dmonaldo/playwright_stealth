@@ -68,7 +68,7 @@ class Stealth:
             chrome_runtime: bool = False,
             iframe_content_window: bool = True,
             media_codecs: bool = True,
-            navigator_hardware_concurrency: int = 4,
+            navigator_hardware_concurrency: bool = True,
             navigator_languages: bool = True,
             navigator_permissions: bool = True,
             navigator_platform: bool = True,
@@ -80,10 +80,11 @@ class Stealth:
             webgl_renderer_override: str = "Intel Iris OpenGL Engine",
             navigator_vendor_override: str = "Google Inc.",
             navigator_user_agent_override: Optional[str] = None,
-            nav_platform: Optional[str] = None,
-            languages: Tuple[str, str] = ("en-US", "en"),
+            navigator_platform_override: Optional[str] = None,
+            navigator_languages_override: Tuple[str, str] = ("en-US", "en"),
             chrome_runtime_run_on_insecure_origins: bool = False,
-            init_scripts_only: bool = False
+            init_scripts_only: bool = False,
+            script_logging: bool = False,
     ):
         # scripts to load
         self.navigator_webdriver: bool = navigator_webdriver
@@ -108,33 +109,38 @@ class Stealth:
         self.webgl_renderer_override: str = webgl_renderer_override
         self.navigator_vendor_override: str = navigator_vendor_override
         self.navigator_user_agent_override: Optional[str] = navigator_user_agent_override
-        self.navigator_platform_override: Optional[str] = nav_platform
-        self.languages_override: Tuple[str, str] = languages
+        self.navigator_platform_override: Optional[str] = navigator_platform_override
+        self.navigator_languages_override: Tuple[str, str] = navigator_languages_override
         self.chrome_runtime_run_on_insecure_origins: Optional[bool] = chrome_runtime_run_on_insecure_origins
         self.init_scripts_only: bool = init_scripts_only
+        self.script_logging = script_logging
 
     @property
     def script_payload(self) -> str:
         """
-        Wraps enabled scripts in an immediately invoked function expression
+        Returns:
+            enabled scripts in an immediately invoked function expression
         """
         return "(() => {\n" + "\n".join(self.enabled_scripts) + "\n})();"
 
     @property
+    def options_payload(self) -> str:
+        opts = {
+            "chrome_runtime_run_on_insecure_origins": self.chrome_runtime_run_on_insecure_origins,
+            "navigator_hardware_concurrency": self.navigator_hardware_concurrency,
+            "navigator_languages_override": self.navigator_languages_override,
+            "navigator_platform": self.navigator_platform_override,
+            "navigator_user_agent": self.navigator_user_agent_override,
+            "navigator_vendor": self.navigator_vendor_override,
+            "webgl_renderer": self.webgl_renderer_override,
+            "webgl_vendor": self.webgl_vendor_override,
+            "script_logging": self.script_logging,
+        }
+        return f"const opts = {json.dumps(opts)};"
+
+    @property
     def enabled_scripts(self):
-        opts = json.dumps(
-            {
-                "webgl_vendor": self.webgl_vendor_override,
-                "webgl_renderer": self.webgl_renderer_override,
-                "navigator_vendor": self.navigator_vendor_override,
-                "navigator_platform": self.navigator_platform_override,
-                "navigator_user_agent": self.navigator_user_agent_override,
-                "languages_override": list(self.languages_override),
-                "chrome_runtime_run_on_insecure_origins": self.chrome_runtime_run_on_insecure_origins,
-            }
-        )
-        # defined options constant
-        yield f"const opts = {opts}"
+        yield self.options_payload
         # init utils and generate_magic_arrays helper
         yield SCRIPTS["utils"]
         yield SCRIPTS["generate_magic_arrays"]
@@ -219,7 +225,7 @@ class Stealth:
                 if self.navigator_webdriver:
                     new_cli_args = self._patch_blink_features_cli_args(new_cli_args or [])
                 if self.navigator_languages:
-                    languages_cli_flag = f"--lang={','.join(self.languages_override)}"
+                    languages_cli_flag = f"--accept-lang={','.join(self.navigator_languages_override)}"
                     new_cli_args = self._patch_cli_arg(new_cli_args or [], languages_cli_flag)
                 new_kwargs["args"] = new_cli_args
         return new_kwargs
@@ -266,23 +272,24 @@ class Stealth:
             return hooked_new_context
         return hooked_browser_method_sync
 
-    def _generate_hooked_new_page(self, new_page_or_new_context_method: Callable) -> Callable:
+    def _generate_hooked_new_page(self, new_page_method: Callable) -> Callable:
         """
         Returns a hooked method (async or sync) for new_page or new_context.
         *args and **kwargs even though these methods may not take any number of arguments,
-        we want to preserve accurate stack traces (ie, it's less confusing if the
+        we want to preserve accurate stack traces when caller passes args improperly
         """
+
         async def hooked_browser_method_async(*args, **kwargs):
-            page_or_context = await new_page_or_new_context_method(*args, **kwargs)
+            page_or_context = await new_page_method(*args, **kwargs)
             await self.apply_stealth_async(page_or_context)
             return page_or_context
 
         def hooked_browser_method_sync(*args, **kwargs):
-            page_or_context = new_page_or_new_context_method(*args, **kwargs)
+            page_or_context = new_page_method(*args, **kwargs)
             self.stealth_sync(page_or_context)
             return page_or_context
 
-        if inspect.iscoroutinefunction(new_page_or_new_context_method):
+        if inspect.iscoroutinefunction(new_page_method):
             return hooked_browser_method_async
         return hooked_browser_method_sync
 

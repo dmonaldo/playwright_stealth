@@ -1,5 +1,3 @@
-from playwright_stealth import Stealth
-
 # playwright_stealth
 
 Transplanted from [puppeteer-extra-plugin-stealth](https://github.com/berstend/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth), with some improvements. Don't expect this to bypass anything but the simplest of bot detection methods. Consider this a proof-of-concept starting point. Anyone serious about anti-bot detections wouldn't be publishing their methods :)
@@ -29,10 +27,10 @@ async def main():
         page_from_different_context = await different_context.new_page()
         print("from new_context: ", await page_from_different_context.evaluate("navigator.webdriver"))
 
-    # Specifying config options and applying evasions to an entire context:
-    custom_hardware_concurrency = 32
+    # Specifying config options and applying evasions manually to an entire context:
+    custom_languages = ["fr-FR", "fr"]
     stealth = Stealth(
-        navigator_hardware_concurrency=custom_hardware_concurrency,
+        navigator_languages_override=custom_languages,
         init_scripts_only=True
     )
     async with async_playwright() as p:
@@ -40,10 +38,10 @@ async def main():
         context = await browser.new_context()
         await stealth.apply_stealth_async(context)
         page_1 = await context.new_page()
-        concurrency_on_page_1_mocked = await page_1.evaluate("navigator.hardwareConcurrency") == custom_hardware_concurrency
+        concurrency_on_page_1_mocked = await page_1.evaluate("navigator.languages") == custom_languages
         print("manually applied stealth applied to page 1:", concurrency_on_page_1_mocked)
         page_2 = await context.new_page()
-        concurrency_on_page_2_mocked = await page_2.evaluate("navigator.hardwareConcurrency") == custom_hardware_concurrency
+        concurrency_on_page_2_mocked = await page_2.evaluate("navigator.languages") == custom_languages
         print("manually applied stealth applied to page 2:", concurrency_on_page_2_mocked)
 
 

@@ -13,4 +13,6 @@ if (navigator.webdriver) {
       },
     }),
   });
+} else {
+  log("not patching navigator.webdriver, assuming CLI args were used instead");
 }

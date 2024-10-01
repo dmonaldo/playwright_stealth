@@ -1,5 +1,6 @@
 2.0.0
  - new methods to hook context: Stealth.use_async and Stealth.use_sync
+    - this allows us to patch CLI options as well, which are often better at faking then any JS will ever be
  - chore: name options consistently
  - fix: scripts will not crash if in headful mode f9f84861
  - ft: use replaceProperty util which copies existing property descriptors 2b9b4b39
