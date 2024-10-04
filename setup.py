@@ -18,7 +18,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    package_data={"playwright_stealth": ["js/*.js"]},
+    package_data={"playwright_stealth": ["js/*.js", "js/**/*.js"]},
     python_requires=">=3.8",
     install_requires=[
         "playwright",
