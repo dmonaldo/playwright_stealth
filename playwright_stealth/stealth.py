@@ -4,12 +4,13 @@ import json
 import re
 import warnings
 from collections.abc import Callable
-from contextlib import contextmanager, asynccontextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Dict, List, Union, Any
 
 from playwright import async_api, sync_api
+
+from playwright_stealth.context_managers import AsyncWrappingContextManager, SyncWrappingContextManager
 
 
 def from_file(name) -> str:
@@ -176,8 +177,7 @@ class Stealth:
         if self.webgl_vendor:
             yield SCRIPTS["webgl_vendor"]
 
-    @asynccontextmanager
-    async def use_async(self, ctx: async_api.PlaywrightContextManager) -> async_api.PlaywrightContextManager:
+    def use_async(self, ctx: async_api.PlaywrightContextManager) -> AsyncWrappingContextManager:
         """
         Instruments the playwright context manager.
         Any browser connected to or any page created with any method from
@@ -186,13 +186,9 @@ class Stealth:
         async with Stealth().use_async(async_playwright()) as p:
             ...
         """
-        async with ctx as yielded_value:
-            for browser in (yielded_value.chromium, yielded_value.firefox, yielded_value.webkit):
-                self._hook_methods_that_return_browser(browser, chromium_mode=browser.name == "chromium")
-            yield yielded_value
+        return AsyncWrappingContextManager(self, ctx)
 
-    @contextmanager
-    def use_sync(self, ctx: sync_api.PlaywrightContextManager) -> sync_api.PlaywrightContextManager:
+    def use_sync(self, ctx: sync_api.PlaywrightContextManager) -> SyncWrappingContextManager:
         """
         Instruments the playwright context manager.
         Any browser connected to or any page created with any method from
@@ -201,10 +197,7 @@ class Stealth:
         with Stealth().use_sync(sync_playwright()) as p:
             ...
         """
-        with ctx as yielded_value:
-            for browser in (yielded_value.chromium, yielded_value.firefox, yielded_value.webkit):
-                self._hook_methods_that_return_browser(browser, chromium_mode=browser.name == "chromium")
-            yield yielded_value
+        return SyncWrappingContextManager(self, ctx)
 
     async def apply_stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
         await page_or_context.add_init_script(self.script_payload)
@@ -230,18 +223,20 @@ class Stealth:
                 new_kwargs["args"] = new_cli_args
         return new_kwargs
 
-    def _hook_methods_that_return_browser(self, original_obj: async_api.BrowserType, chromium_mode: bool) -> None:
+    def hook_playwright_context(self, ctx: Union[async_api.Playwright, sync_api.Playwright]) -> None:
         """
-        Given a BrowserType object, hooks all the methods that return a Browser object.
-        Can be used with sync and async methods
+        Given a Playwright context object, hooks all the browser type object methods that return a Browser object.
+        Can be used with sync and async methods contexts
         """
-        for name, method in inspect.getmembers(original_obj, predicate=inspect.ismethod):
-            if method.__annotations__.get('return') in ("Browser", "BrowserContext"):
-                method = self._generate_hooked_method_that_returns_browser(method, chromium_mode)
-                setattr(original_obj, name, method)
+        for browser_type in (ctx.chromium, ctx.firefox, ctx.webkit):
+            for name, method in inspect.getmembers(browser_type, predicate=inspect.ismethod):
+                if method.__annotations__.get('return') in ("Browser", "BrowserContext"):
+                    chromium_mode = browser_type.name == "chromium"
+                    method = self._generate_hooked_method_that_returns_browser(method, chromium_mode)
+                    setattr(browser_type, name, method)
 
     def _generate_hooked_method_that_returns_browser(self, method: Callable, chromium_mode: bool):
-        async def hooked_method(*args, **kwargs):
+        async def async_hooked_method(*args, **kwargs):
             browser_or_context = await method(*args, **self._kwargs_with_patched_cli_arg(method, kwargs, chromium_mode))
             if isinstance(browser_or_context, async_api.BrowserContext):
                 context: async_api.BrowserContext = browser_or_context
@@ -255,10 +250,24 @@ class Stealth:
 
             return browser_or_context
 
-        return hooked_method
+        async def sync_hooked_method(*args, **kwargs):
+            browser_or_context = method(*args, **self._kwargs_with_patched_cli_arg(method, kwargs, chromium_mode))
+            if isinstance(browser_or_context, sync_api.BrowserContext):
+                context: async_api.BrowserContext = browser_or_context
+                context.new_page = self._generate_hooked_new_page(context.new_page)
+            elif isinstance(browser_or_context, sync_api.Browser):
+                browser: async_api.Browser = browser_or_context
+                browser.new_page = self._generate_hooked_new_page(browser.new_page)
+                browser.new_context = self._generate_hooked_new_context(browser.new_context)
+            else:
+                raise TypeError(f"unexpected type from function (bug): {method.__name__} returned {browser_or_context}")
+
+        if inspect.iscoroutinefunction(method):
+            return async_hooked_method
+        return sync_hooked_method
 
     def _generate_hooked_new_context(self, new_context_method: Callable) -> Callable:
-        async def hooked_new_context(*args, **kwargs):
+        async def hooked_new_context_async(*args, **kwargs):
             context = await new_context_method(*args, **kwargs)
             context.new_page = self._generate_hooked_new_page(context.new_page)
             return context
@@ -269,7 +278,7 @@ class Stealth:
             return context
 
         if inspect.iscoroutinefunction(new_context_method):
-            return hooked_new_context
+            return hooked_new_context_async
         return hooked_browser_method_sync
 
     def _generate_hooked_new_page(self, new_page_method: Callable) -> Callable:

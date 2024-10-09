@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="playwright-stealth",
-    version="1.0.7",
+    version="2.0.0",
     author="AtuboDad",
     author_email="lcjasas@sina.com",
     description="playwright stealth",
@@ -18,7 +18,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    package_data={"playwright_stealth": ["js/*.js", "js/**/*.js"]},
+    package_data={"playwright_stealth": ["js/**/*.js"]},
     python_requires=">=3.8",
     install_requires=[
         "playwright",

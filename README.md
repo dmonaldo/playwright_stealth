@@ -2,10 +2,12 @@
 
 Transplanted from [puppeteer-extra-plugin-stealth](https://github.com/berstend/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth), with some improvements. Don't expect this to bypass anything but the simplest of bot detection methods. Consider this a proof-of-concept starting point.
 
+This is a WIP fork, with the goal of replacing the out-of-date upstream.
+
 ## Install
 
 ```
-$ pip install playwright-stealth
+$ pip install git+https://github.com/Mattwmaster58/playwright_stealth
 ```
 
 ## Example Usage
