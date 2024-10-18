@@ -1,4 +1,5 @@
 2.0.0
+ - __breaking change__: more consistent parameter names for the Stealth object
  - new methods to hook context: Stealth.use_async and Stealth.use_sync
     - this allows us to patch CLI options as well, which are often better at faking than JS
  - chore: name options consistently
