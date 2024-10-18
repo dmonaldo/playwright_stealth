@@ -19,7 +19,7 @@ class AsyncWrappingContextManager:
 class SyncWrappingContextManager:
     def __init__(self, stealth: 'Stealth', manager: sync_api.PlaywrightContextManager):
         if isinstance(manager, async_api.PlaywrightContextManager):
-            raise TypeError("You need to call 'use_async' instead of 'use_sync' for a async Playwright context")
+            raise TypeError("You need to call 'use_async' instead of 'use_sync' for an async Playwright context")
         self.stealth = stealth
         self.manager = manager
 

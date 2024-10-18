@@ -236,7 +236,7 @@ class Stealth:
                     setattr(browser_type, name, method)
 
     def _generate_hooked_method_that_returns_browser(self, method: Callable, chromium_mode: bool):
-        async def async_hooked_method(*args, **kwargs):
+        async def async_hooked_method(*args, **kwargs) -> Union[async_api.Browser, async_api.BrowserContext]:
             browser_or_context = await method(*args, **self._kwargs_with_patched_cli_arg(method, kwargs, chromium_mode))
             if isinstance(browser_or_context, async_api.BrowserContext):
                 context: async_api.BrowserContext = browser_or_context
@@ -250,17 +250,19 @@ class Stealth:
 
             return browser_or_context
 
-        async def sync_hooked_method(*args, **kwargs):
+        def sync_hooked_method(*args, **kwargs) -> Union[sync_api.Browser, sync_api.BrowserContext]:
             browser_or_context = method(*args, **self._kwargs_with_patched_cli_arg(method, kwargs, chromium_mode))
             if isinstance(browser_or_context, sync_api.BrowserContext):
-                context: async_api.BrowserContext = browser_or_context
+                context: sync_api.BrowserContext = browser_or_context
                 context.new_page = self._generate_hooked_new_page(context.new_page)
             elif isinstance(browser_or_context, sync_api.Browser):
-                browser: async_api.Browser = browser_or_context
+                browser: sync_api.Browser = browser_or_context
                 browser.new_page = self._generate_hooked_new_page(browser.new_page)
                 browser.new_context = self._generate_hooked_new_context(browser.new_context)
             else:
                 raise TypeError(f"unexpected type from function (bug): {method.__name__} returned {browser_or_context}")
+
+            return browser_or_context
 
         if inspect.iscoroutinefunction(method):
             return async_hooked_method
