@@ -2,10 +2,11 @@ import asyncio
 import logging
 
 import pytest
+from playwright import sync_api
 from playwright.async_api import async_playwright
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, Browser
 
-from playwright_stealth.stealth import Stealth
+from playwright_stealth.stealth import Stealth, ALL_DISABLED_KWARGS
 
 
 @pytest.mark.parametrize("browser_type", ["chromium", "firefox"])
@@ -29,10 +30,7 @@ def test_sync_smoketest(browser_type: str):
 
 async def test_async_navigator_webdriver_smoketest(hooked_async_browser):
     for page in [await hooked_async_browser.new_page(), await (await hooked_async_browser.new_context()).new_page()]:
-        logging.getLogger(__name__).warning("hello")
-        page.on("console", lambda x: logging.getLogger(__name__).warning(x.text))
         await page.goto("http://example.org")
-        await asyncio.sleep(1)
         assert await page.evaluate("navigator.webdriver") is False
 
 
@@ -40,3 +38,21 @@ def test_sync_navigator_webdriver_smoketest(hooked_sync_browser):
     for page in [hooked_sync_browser.new_page(), hooked_sync_browser.new_context().new_page()]:
         page.goto("http://example.org")
         assert page.evaluate("navigator.webdriver") is False
+
+
+def test_payload_is_empty_when_no_evasions_active():
+    assert len(Stealth(**ALL_DISABLED_KWARGS).script_payload) == 0
+
+def test_empty_payload_not_injected():
+    init_script_added = False
+
+    class MockBrowser:
+        def add_init_script(self, *args, **kwargs):
+            nonlocal init_script_added
+            init_script_added = True
+
+    # noinspection PyTypeChecker
+    Stealth(**ALL_DISABLED_KWARGS).apply_stealth_sync(MockBrowser())
+    assert not init_script_added
+
+

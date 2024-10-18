@@ -43,7 +43,7 @@ from typing import Tuple, Optional
 
 class Stealth:
     """
-    Playwright stealth configuration that applies stealth strategies to playwright page objects.
+    Playwright stealth configuration that applies stealth strategies to Playwright.
     The stealth strategies are contained in ./js package and are basic javascript scripts that are executed
     on every page.goto() called.
     Note:
@@ -119,10 +119,13 @@ class Stealth:
     @property
     def script_payload(self) -> str:
         """
-        Returns:
-            enabled scripts in an immediately invoked function expression
+        Generates an immediately invoked function expression for all enabled scripts
+        Returns: string of enabled scripts in IIFE
         """
-        return "(() => {\n" + "\n".join(self.enabled_scripts) + "\n})();"
+        scripts_block = "\n".join(self.enabled_scripts)
+        if len(scripts_block) == 0:
+            return ""
+        return "(() => {\n" + scripts_block + "\n})();"
 
     @property
     def options_payload(self) -> str:
@@ -141,11 +144,16 @@ class Stealth:
 
     @property
     def enabled_scripts(self):
+        evasion_script_block = "\n".join(self._evasion_scripts)
+        if len(evasion_script_block) == 0:
+            return ""
+
         yield self.options_payload
-        # init utils and generate_magic_arrays helper
         yield SCRIPTS["utils"]
         yield SCRIPTS["generate_magic_arrays"]
 
+    @property
+    def _evasion_scripts(self) -> str:
         if self.chrome_app:
             yield SCRIPTS["chrome_app"]
         if self.chrome_csi:
@@ -200,10 +208,13 @@ class Stealth:
         return SyncWrappingContextManager(self, ctx)
 
     async def apply_stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
+        if len(self.script_payload) > 0:
+            return
         await page_or_context.add_init_script(self.script_payload)
 
-    def stealth_sync(self, page_or_context: Union[sync_api.Page, sync_api.BrowserContext]) -> None:
-        page_or_context.add_init_script(self.script_payload)
+    def apply_stealth_sync(self, page_or_context: Union[sync_api.Page, sync_api.BrowserContext]) -> None:
+        if len(self.script_payload) > 0:
+            page_or_context.add_init_script(self.script_payload)
 
     def _kwargs_with_patched_cli_arg(self, method: Callable, packed_kwargs: Dict[str, Any], chromium_mode: bool) -> \
             Dict[str, Any]:
@@ -297,7 +308,7 @@ class Stealth:
 
         def hooked_browser_method_sync(*args, **kwargs):
             page_or_context = new_page_method(*args, **kwargs)
-            self.stealth_sync(page_or_context)
+            self.apply_stealth_sync(page_or_context)
             return page_or_context
 
         if inspect.iscoroutinefunction(new_page_method):
@@ -319,7 +330,8 @@ class Stealth:
             else:
                 new_args.append(arg)
         else:  # no break
-            # no blink features disabled, no need to be careful how we modify the command line
+            # the user has specified no extra blink features disabled,
+            # so no need to be careful how we modify the command line
             new_args.append(f"{disable_blink_features_prefix}{automation_controlled_feature_name}")
         return new_args
 
@@ -342,3 +354,23 @@ class Stealth:
             # none of the existing switches overlap with the one we're trying to set
             new_args.append(flag)
         return new_args
+
+
+ALL_DISABLED_KWARGS = {
+    "navigator_webdriver": False,
+    "webgl_vendor": False,
+    "chrome_app": False,
+    "chrome_csi": False,
+    "chrome_load_times": False,
+    "chrome_runtime": False,
+    "iframe_content_window": False,
+    "media_codecs": False,
+    "navigator_hardware_concurrency": False,
+    "navigator_languages": False,
+    "navigator_permissions": False,
+    "navigator_platform": False,
+    "navigator_plugins": False,
+    "navigator_user_agent": False,
+    "navigator_vendor": False,
+    "hairline": False,
+}

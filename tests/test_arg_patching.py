@@ -17,7 +17,7 @@ async def test_cli_args_are_patched_correctly(hooked_async_browser):
     await page.goto("http://example.org")
     webdriver_js_was_patched = not any(map(lambda x: "not patching navigator.webdriver" in x, console_messages))
     languages_js_was_patched = not any(map(lambda x: "not patching navigator.languages" in x, console_messages))
-    # if browser is chromium, we should patch the CLI args
+    # iff browser is chromium, we should patch the CLI args
     if hooked_async_browser.browser_type == "chromium":
         assert not webdriver_js_was_patched
         assert not languages_js_was_patched
