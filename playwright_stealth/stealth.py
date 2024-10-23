@@ -151,6 +151,7 @@ class Stealth:
         yield self.options_payload
         yield SCRIPTS["utils"]
         yield SCRIPTS["generate_magic_arrays"]
+        yield evasion_script_block
 
     @property
     def _evasion_scripts(self) -> str:
@@ -209,8 +210,7 @@ class Stealth:
 
     async def apply_stealth_async(self, page_or_context: Union[async_api.Page, async_api.BrowserContext]) -> None:
         if len(self.script_payload) > 0:
-            return
-        await page_or_context.add_init_script(self.script_payload)
+            await page_or_context.add_init_script(self.script_payload)
 
     def apply_stealth_sync(self, page_or_context: Union[sync_api.Page, sync_api.BrowserContext]) -> None:
         if len(self.script_payload) > 0:
