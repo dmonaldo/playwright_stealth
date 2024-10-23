@@ -69,7 +69,7 @@ class Stealth:
             chrome_runtime: bool = False,
             iframe_content_window: bool = True,
             media_codecs: bool = True,
-            navigator_hardware_concurrency: bool = True,kkk
+            navigator_hardware_concurrency: bool = True,
             navigator_languages: bool = True,
             navigator_permissions: bool = True,
             navigator_platform: bool = True,
