@@ -374,3 +374,4 @@ ALL_EVASIONS_DISABLED_KWARGS = {
     "navigator_vendor": False,
     "hairline": False,
 }
+
