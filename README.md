@@ -16,7 +16,7 @@ $ pip install git+https://github.com/Mattwmaster58/playwright_stealth
 import asyncio
 
 from playwright.async_api import async_playwright
-from playwright_stealth import Stealth
+from playwright_stealth import Stealth, ALL_EVASIONS_DISABLED_KWARGS
 
 
 async def main():
@@ -30,12 +30,13 @@ async def main():
         print("from new_context: ", await page_from_different_context.evaluate("navigator.webdriver"))
 
     # Specifying config options and applying evasions manually to an entire context:
-    custom_languages = ["fr-FR", "fr"]
+    custom_languages = ("fr-FR", "fr")
     stealth = Stealth(
         navigator_languages_override=custom_languages,
         init_scripts_only=True
     )
     async with async_playwright() as p:
+        # or, to hook every browser launched from this context: stealth.hook_playwright_context(p)
         browser = await p.chromium.launch()
         context = await browser.new_context()
         await stealth.apply_stealth_async(context)
@@ -45,6 +46,11 @@ async def main():
         page_2 = await context.new_page()
         concurrency_on_page_2_mocked = await page_2.evaluate("navigator.languages") == custom_languages
         print("manually applied stealth applied to page 2:", concurrency_on_page_2_mocked)
+
+    # a constant "ALL_EVASIONS_DISABLED_KWARGS" is provided if only a few evasions are desired:
+    assert len(Stealth(**ALL_EVASIONS_DISABLED_KWARGS).script_payload) == 0
+    # all but navigator_webdriver disabled
+    assert len(Stealth(**{**ALL_EVASIONS_DISABLED_KWARGS, "navigator_webdriver": True}).script_payload) > 0
 
 
 asyncio.run(main())
