@@ -431,4 +431,4 @@ utils.arrayEqual = (arr1, arr2) => arr1.length === arr2.length && arr1.every((va
 const log = (...args) => opts.script_logging && console.log("[playwright-stealth]:", ...args);
 const warn = (...args) => opts.script_logging && console.warn("[playwright-stealth]:", ...args);
 
-log(opts);
+log(JSON.stringify(opts));
