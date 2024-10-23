@@ -5,7 +5,7 @@ import re
 import warnings
 from collections.abc import Callable
 from copy import deepcopy
-from importlib import resources
+from pathlib import Path
 from typing import Dict, List, Union, Any
 
 from playwright import async_api, sync_api
@@ -14,7 +14,7 @@ from playwright_stealth.context_managers import AsyncWrappingContextManager, Syn
 
 
 def from_file(name) -> str:
-    return resources.read_text('playwright_stealth.js', name)
+    return (Path(__file__).parent / "js" / name).read_text()
 
 
 SCRIPTS: Dict[str, str] = {
