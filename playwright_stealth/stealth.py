@@ -20,22 +20,22 @@ def from_file(name) -> str:
 SCRIPTS: Dict[str, str] = {
     "generate_magic_arrays": from_file("generate.magic.arrays.js"),
     "utils": from_file("utils.js"),
-    "chrome_app": from_file("mitigations/chrome.app.js"),
-    "chrome_csi": from_file("mitigations/chrome.csi.js"),
-    "chrome_hairline": from_file("mitigations/chrome.hairline.js"),
-    "chrome_load_times": from_file("mitigations/chrome.load.times.js"),
-    "chrome_runtime": from_file("mitigations/chrome.runtime.js"),
-    "iframe_content_window": from_file("mitigations/iframe.contentWindow.js"),
-    "media_codecs": from_file("mitigations/media.codecs.js"),
-    "navigator_hardware_concurrency": from_file("mitigations/navigator.hardwareConcurrency.js"),
-    "navigator_languages": from_file("mitigations/navigator.languages.js"),
-    "navigator_permissions": from_file("mitigations/navigator.permissions.js"),
-    "navigator_platform": from_file("mitigations/navigator.platform.js"),
-    "navigator_plugins": from_file("mitigations/navigator.plugins.js"),
-    "navigator_user_agent": from_file("mitigations/navigator.userAgent.js"),
-    "navigator_vendor": from_file("mitigations/navigator.vendor.js"),
-    "navigator_webdriver": from_file("mitigations/navigator.webdriver.js"),
-    "webgl_vendor": from_file("mitigations/webgl.vendor.js"),
+    "chrome_app": from_file("evasions/chrome.app.js"),
+    "chrome_csi": from_file("evasions/chrome.csi.js"),
+    "chrome_hairline": from_file("evasions/chrome.hairline.js"),
+    "chrome_load_times": from_file("evasions/chrome.load.times.js"),
+    "chrome_runtime": from_file("evasions/chrome.runtime.js"),
+    "iframe_content_window": from_file("evasions/iframe.contentWindow.js"),
+    "media_codecs": from_file("evasions/media.codecs.js"),
+    "navigator_hardware_concurrency": from_file("evasions/navigator.hardwareConcurrency.js"),
+    "navigator_languages": from_file("evasions/navigator.languages.js"),
+    "navigator_permissions": from_file("evasions/navigator.permissions.js"),
+    "navigator_platform": from_file("evasions/navigator.platform.js"),
+    "navigator_plugins": from_file("evasions/navigator.plugins.js"),
+    "navigator_user_agent": from_file("evasions/navigator.userAgent.js"),
+    "navigator_vendor": from_file("evasions/navigator.vendor.js"),
+    "navigator_webdriver": from_file("evasions/navigator.webdriver.js"),
+    "webgl_vendor": from_file("evasions/webgl.vendor.js"),
 }
 
 from typing import Tuple, Optional
@@ -190,7 +190,7 @@ class Stealth:
         """
         Instruments the playwright context manager.
         Any browser connected to or any page created with any method from
-        the patched context should have stealth mitigations applied automatically.
+        the patched context should have stealth evasions applied automatically.
 
         async with Stealth().use_async(async_playwright()) as p:
             ...
@@ -201,7 +201,7 @@ class Stealth:
         """
         Instruments the playwright context manager.
         Any browser connected to or any page created with any method from
-        the patched context should have stealth mitigations applied automatically.
+        the patched context should have stealth evasions applied automatically.
 
         with Stealth().use_sync(sync_playwright()) as p:
             ...
@@ -356,7 +356,7 @@ class Stealth:
         return new_args
 
 
-ALL_DISABLED_KWARGS = {
+ALL_EVASIONS_DISABLED_KWARGS = {
     "navigator_webdriver": False,
     "webgl_vendor": False,
     "chrome_app": False,
